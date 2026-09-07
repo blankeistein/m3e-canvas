@@ -1169,12 +1169,19 @@ export default function Page() {
     setDrag({ ...d });
   };
 
-  const onPartPointerDown = (e: React.PointerEvent, kind: Kind) => {
+  const onPartPointerDown = (e: React.PointerEvent, kind: Kind, meta?: { label?: string; composeType?: "Column" | "Row" }) => {
     if (e.button !== 0) return;
     e.preventDefault();
     e.stopPropagation();
     flushPending();
     const item = makeItem(kind);
+    if (meta?.label) item.label = meta.label;
+    if (meta?.composeType) {
+      (item as any).composeType = meta.composeType;
+      if (meta.composeType === "Row") {
+        item.size2 = 120;
+      }
+    }
     const pt = toWorld(e.clientX, e.clientY);
     const sz = sizeOf(item, widthsRef.current);
     const offX = Math.min(sz.w / 2, 90);

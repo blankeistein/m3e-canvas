@@ -6,19 +6,32 @@ import { Doc, Palette, Platform, defaultPlatformOf } from "@/lib/tokens";
 import { Icon } from "./M3Node";
 import { Field, IconBtn, Segmented } from "./ui";
 import { t, useLang } from "@/lib/i18n";
+import { ComposeDoc } from "@/lib/compose/schema";
+import { convertDocToComposeDoc } from "@/lib/compose/adapter";
+import { ReactExporter } from "./ReactExporter";
+import { KotlinComposeExporter } from "./KotlinComposeExporter";
+
+type ExportTab = "prompt" | "react" | "kotlin";
 
 export function PromptPanel({
   doc,
   widths,
   palette: p,
   onDoc,
+  composeDoc,
 }: {
   doc: Doc;
   widths: Record<string, number>;
   palette: Palette;
   onDoc: (patch: Partial<Doc>) => void;
+  composeDoc?: ComposeDoc;
 }) {
   const lang = useLang();
+  const [tab, setTab] = useState<ExportTab>("prompt");
+  const effectiveComposeDoc = useMemo(
+    () => composeDoc ?? convertDocToComposeDoc(doc, p),
+    [composeDoc, doc, p]
+  );
   const generated = useMemo(() => buildPrompt(doc, widths, undefined, lang), [doc, widths, lang]);
   const edited = doc.promptEdit !== undefined;
   const text = edited ? doc.promptEdit! : generated;
@@ -64,84 +77,103 @@ export function PromptPanel({
 
   return (
     <div style={{ display: "flex", flexDirection: "column", height: "100%", padding: 12, gap: 10 }}>
-      <Field
-        value={doc.title}
-        onChange={(title) => onDoc({ title })}
-        placeholder={t("appName", lang)}
-        p={p}
-        icon="smartphone"
-      />
-      <Field
-        value={doc.brief}
-        onChange={(brief) => onDoc({ brief })}
-        placeholder={t("brief", lang)}
-        p={p}
-        icon="lightbulb"
-        multiline
-        rows={3}
-      />
-      <Segmented<Platform>
+      <Segmented<ExportTab>
         options={[
-          { key: "android", icon: "android", label: "Android", title: t("targetAndroid", lang) },
-          { key: "web", icon: "language", label: "Web", title: t("targetWeb", lang) },
+          { key: "prompt", icon: "edit_note", label: "Prompt" },
+          { key: "react", icon: "code", label: "React" },
+          { key: "kotlin", icon: "android", label: "Compose" },
         ]}
-        value={doc.platform ?? defaultPlatformOf(doc.frames, doc.frame)}
-        onChange={(platform) => onDoc({ platform })}
+        value={tab}
+        onChange={setTab}
         p={p}
-        height={40}
+        height={38}
       />
-      <div style={{ position: "relative", flex: 1, minHeight: 0, display: "flex" }}>
-        <textarea
-          className="no-scrollbar"
-          value={text}
-          onChange={(e) => onDoc({ promptEdit: e.target.value })}
-          spellCheck={false}
-          aria-label={t("prompt", lang)}
-          style={{
-            flex: 1,
-            minHeight: 0,
-            width: "100%",
-            borderRadius: 18,
-            border: "none",
-            background: p.surfaceContainerLow,
-            padding: edited ? "14px 14px 48px" : 14,
-            fontSize: 13,
-            lineHeight: 1.75,
-            color: p.onSurface,
-            fontFamily: "inherit",
-            resize: "none",
-            outline: "none",
-            boxSizing: "border-box",
-          }}
-        />
-        {edited && (
-          <div style={{ position: "absolute", right: 8, bottom: 8 }}>
-            <IconBtn icon="undo" p={p} size={32} onClick={() => onDoc({ promptEdit: undefined })} title={t("promptReset", lang)} />
+
+      {tab === "react" && <ReactExporter doc={effectiveComposeDoc} palette={p} />}
+      {tab === "kotlin" && <KotlinComposeExporter doc={effectiveComposeDoc} palette={p} />}
+
+      {tab === "prompt" && (
+        <>
+          <Field
+            value={doc.title}
+            onChange={(title) => onDoc({ title })}
+            placeholder={t("appName", lang)}
+            p={p}
+            icon="smartphone"
+          />
+          <Field
+            value={doc.brief}
+            onChange={(brief) => onDoc({ brief })}
+            placeholder={t("brief", lang)}
+            p={p}
+            icon="lightbulb"
+            multiline
+            rows={3}
+          />
+          <Segmented<Platform>
+            options={[
+              { key: "android", icon: "android", label: "Android", title: t("targetAndroid", lang) },
+              { key: "web", icon: "language", label: "Web", title: t("targetWeb", lang) },
+            ]}
+            value={doc.platform ?? defaultPlatformOf(doc.frames, doc.frame)}
+            onChange={(platform) => onDoc({ platform })}
+            p={p}
+            height={40}
+          />
+          <div style={{ position: "relative", flex: 1, minHeight: 0, display: "flex" }}>
+            <textarea
+              className="no-scrollbar"
+              value={text}
+              onChange={(e) => onDoc({ promptEdit: e.target.value })}
+              spellCheck={false}
+              aria-label={t("prompt", lang)}
+              style={{
+                flex: 1,
+                minHeight: 0,
+                width: "100%",
+                borderRadius: 18,
+                border: "none",
+                background: p.surfaceContainerLow,
+                padding: edited ? "14px 14px 48px" : 14,
+                fontSize: 13,
+                lineHeight: 1.75,
+                color: p.onSurface,
+                fontFamily: "inherit",
+                resize: "none",
+                outline: "none",
+                boxSizing: "border-box",
+              }}
+            />
+            {edited && (
+              <div style={{ position: "absolute", right: 8, bottom: 8 }}>
+                <IconBtn icon="undo" p={p} size={32} onClick={() => onDoc({ promptEdit: undefined })} title={t("promptReset", lang)} />
+              </div>
+            )}
           </div>
-        )}
-      </div>
-      <button
-        onClick={copy}
-        className="m3-press"
-        style={{
-          height: 48,
-          borderRadius: 24,
-          border: "none",
-          background: copied ? p.tertiaryContainer : p.primary,
-          color: copied ? p.onTertiaryContainer : p.onPrimary,
-          fontSize: 14,
-          fontWeight: 600,
-          cursor: "pointer",
-          display: "inline-flex",
-          alignItems: "center",
-          justifyContent: "center",
-          gap: 8,
-          transition: "background 160ms, color 160ms",
-        }}
-      >
-        <Icon name={copied ? "check" : "content_copy"} size={20} />
-        {copied ? t("copied", lang) : t("copyPrompt", lang)}
-      </button>
+          <button
+            onClick={copy}
+            className="m3-press"
+            style={{
+              height: 48,
+              borderRadius: 24,
+              border: "none",
+              background: copied ? p.tertiaryContainer : p.primary,
+              color: copied ? p.onTertiaryContainer : p.onPrimary,
+              fontSize: 14,
+              fontWeight: 600,
+              cursor: "pointer",
+              display: "inline-flex",
+              alignItems: "center",
+              justifyContent: "center",
+              gap: 8,
+              transition: "background 160ms, color 160ms",
+            }}
+          >
+            <Icon name={copied ? "check" : "content_copy"} size={20} />
+            {copied ? t("copied", lang) : t("copyPrompt", lang)}
+          </button>
+        </>
+      )}
     </div>
   );
 }

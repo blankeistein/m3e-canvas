@@ -12,6 +12,20 @@ const CATEGORY_TEXT = {
   ko: { actions: "동작", navigation: "내비게이션", containment: "컨테이너", inputs: "입력", content: "콘텐츠", progress: "진행 상태" },
 } satisfies Record<string, Record<Category, string>>;
 
+export interface ComposePaletteItem {
+  id: string;
+  kind: Kind;
+  label: string;
+  icon: string;
+  composeType: "Column" | "Row";
+  category: Category;
+}
+
+export const COMPOSE_PALETTE_ITEMS: ComposePaletteItem[] = [
+  { id: "compose:Column", kind: "box", label: "Column", icon: "view_column", composeType: "Column", category: "containment" },
+  { id: "compose:Row", kind: "box", label: "Row", icon: "view_stream", composeType: "Row", category: "containment" },
+];
+
 export function PartsPalette({
   palette: p,
   favorites,
@@ -22,7 +36,7 @@ export function PartsPalette({
   palette: Palette;
   favorites: Kind[];
   onToggleFavorite: (k: Kind) => void;
-  onPartPointerDown: (e: React.PointerEvent, kind: Kind) => void;
+  onPartPointerDown: (e: React.PointerEvent, kind: Kind, meta?: { label?: string; composeType?: "Column" | "Row" }) => void;
   overBin: boolean;
 }) {
   const lang = useLang();
@@ -31,11 +45,15 @@ export function PartsPalette({
 
   const filtered = useMemo(() => {
     const s = q.trim().toLowerCase();
-    if (!s) return KIND_ORDER;
-    return KIND_ORDER.filter((k) => {
+    const composeMatches = COMPOSE_PALETTE_ITEMS.filter(
+      (item) => !s || item.label.toLowerCase().includes(s) || item.category.toLowerCase().includes(s)
+    );
+    if (!s) return { composeMatches, kinds: KIND_ORDER };
+    const kinds = KIND_ORDER.filter((k) => {
       const sp = KIND_SPEC[k];
       return labelOf(k).toLowerCase().includes(s) || sp.label.toLowerCase().includes(s) || sp.noun.includes(s) || k.toLowerCase().includes(s);
     });
+    return { composeMatches, kinds };
   }, [q, lang]);
 
   const tile = (k: Kind) => {
@@ -52,6 +70,18 @@ export function PartsPalette({
       />
     );
   };
+
+  const composeTile = (item: ComposePaletteItem) => (
+    <Tile
+      key={item.id}
+      icon={item.icon}
+      label={item.label}
+      p={p}
+      onPointerDown={(e) => onPartPointerDown(e, item.kind, { label: item.label, composeType: item.composeType })}
+      starred={favorites.includes(item.id as any)}
+      onStar={() => onToggleFavorite(item.id as any)}
+    />
+  );
 
   const grid: React.CSSProperties = {
     display: "grid",
@@ -73,8 +103,9 @@ export function PartsPalette({
         )}
         {q ? (
           <div style={{ ...grid, padding: "4px 4px 12px" }}>
-            {filtered.map(tile)}
-            {filtered.length === 0 && (
+            {filtered.composeMatches.map(composeTile)}
+            {filtered.kinds.map(tile)}
+            {filtered.composeMatches.length === 0 && filtered.kinds.length === 0 && (
               <div style={{ gridColumn: "1 / -1", color: p.outline, fontSize: 13, padding: 12, textAlign: "center" }}>
                 <Icon name="search_off" size={28} />
               </div>
@@ -83,7 +114,10 @@ export function PartsPalette({
         ) : (
           CATEGORIES.map((c) => (
             <Section key={c.key} id={`cat:${c.key}`} icon={c.icon} title={lang === "en" ? c.label : CATEGORY_TEXT[lang][c.key]} p={p}>
-              <div style={grid}>{KIND_ORDER.filter((k) => KIND_SPEC[k].category === c.key).map(tile)}</div>
+              <div style={grid}>
+                {c.key === "containment" && COMPOSE_PALETTE_ITEMS.map(composeTile)}
+                {KIND_ORDER.filter((k) => KIND_SPEC[k].category === c.key).map(tile)}
+              </div>
             </Section>
           ))
         )}
